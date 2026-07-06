@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your Mendeley Library — Mendeley Citation Cleaner</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Your Mendeley Library</h1>
+    <button id="logout-btn">Log out</button>
+  </header>
+  <p id="status">Loading your library…</p>
+  <label><input type="checkbox" id="show-all-toggle"> Show all documents (including ones with no suggestions)</label>
+  <table id="library-table" hidden>
+    <thead>
+      <tr><th>Title</th><th>Authors</th><th>Year</th><th>Suggestions</th></tr>
+    </thead>
+    <tbody id="library-body"></tbody>
+  </table>
+  <section id="diff-panel" hidden></section>
+
+  <section id="apply-section">
+    <h2>Apply Accepted Changes</h2>
+    <div id="apply-summary"></div>
+    <button id="apply-btn" disabled>Apply Accepted Changes</button>
+    <button id="download-backup-btn">Download Backup (JSON)</button>
+    <div id="apply-progress"></div>
+  </section>
+
+  <section id="style-section">
+    <h2>Citation Style / Export</h2>
+    <div id="style-panel"></div>
+  </section>
+
+  <script type="module" src="js/app-page.js"></script>
+</body>
+</html>

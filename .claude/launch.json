@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mendeley-citation-cleaner",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-m", "http.server", "8000", "--directory", "C:\\Users\\windows\\Desktop\\claude skills\\mendeley-citation-cleaner"],
+      "port": 8000
+    }
+  ]
+}

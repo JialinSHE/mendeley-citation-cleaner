@@ -22,3 +22,29 @@ See [PRIVACY.md](PRIVACY.md). Short version: this is a static web app with no ba
 ## Development
 
 Plain HTML/CSS/JavaScript, no build step, no dependencies required to run. See `CLAUDE.md` for the full architecture and build-order notes.
+
+### One-time setup: register the app with Mendeley
+
+1. Go to https://dev.mendeley.com/myapps.html and sign in with your Mendeley account.
+2. Register a new application. For **Redirect URL**, use where `callback.html` will be served from — for local testing, `http://localhost:8000/callback.html`.
+3. Copy the **Client ID** it gives you.
+4. Open `js/config.js` and fill in:
+   ```js
+   export const MENDELEY_CLIENT_ID = "your-client-id-here";
+   export const REDIRECT_URI = "http://localhost:8000/callback.html";
+   ```
+
+### Running locally
+
+This is a static site — any local web server works (it can't be opened directly as a `file://` URL, because Mendeley's login redirect needs a real `http://` address). From this folder:
+
+```
+py -m http.server 8000
+```
+
+Then open http://localhost:8000 in your browser.
+
+### Current status
+
+- **M1 (done)**: log in with Mendeley, fetch your whole library (handles pagination), display title/authors/year in a table.
+- Everything else in the plan (correction suggestions, review UI, write-back, citation style customization, etc.) is not built yet.
