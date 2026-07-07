@@ -17,4 +17,4 @@ export const CROSSREF_MAILTO = "";
 // Formspree endpoint for the in-app feedback form, e.g.
 // "https://formspree.io/f/abcdwxyz". Sign up free at https://formspree.io,
 // create a form, and paste its endpoint URL here. Leave blank to hide the form.
-export const FORMSPREE_ENDPOINT = "";
+export const FORMSPREE_ENDPOINT = "https://formspree.io/f/xlgyvyar";
