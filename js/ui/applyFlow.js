@@ -44,11 +44,28 @@ export function renderApplySummary(container, changes) {
   container.appendChild(list);
 }
 
+// Translate our internal field names into Mendeley's document schema:
+// journal is stored as "source", and DOI lives inside the nested "identifiers"
+// object (merged with any existing IDs so we don't wipe ISSN/ISBN/etc).
+function buildPatchBody(doc, fields) {
+  const body = {};
+  for (const [field, value] of Object.entries(fields)) {
+    if (field === "journal") {
+      body.source = value;
+    } else if (field === "doi") {
+      body.identifiers = { ...(doc.identifiers || {}), doi: value };
+    } else {
+      body[field] = value;
+    }
+  }
+  return body;
+}
+
 export async function applyChanges(changes, onProgress) {
   const results = [];
   for (const { doc, fields, diff } of changes) {
     try {
-      const updatedDoc = await patchDocument(doc.id, fields);
+      const updatedDoc = await patchDocument(doc.id, buildPatchBody(doc, fields));
 
       for (const field of Object.keys(fields)) {
         state.changeLog.push({

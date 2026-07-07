@@ -39,12 +39,22 @@ Plain HTML/CSS/JavaScript, no build step, no dependencies required to run. See `
 This is a static site — any local web server works (it can't be opened directly as a `file://` URL, because Mendeley's login redirect needs a real `http://` address). From this folder:
 
 ```
-py -m http.server 8000
+py tools/dev_server.py
 ```
+
+(`tools/dev_server.py` is a small server that tells the browser not to cache files, so code changes always show on a normal reload. A plain `py -m http.server 8000` also works but may serve stale files after edits.)
 
 Then open http://localhost:8000 in your browser.
 
 ### Current status
 
-- **M1 (done)**: log in with Mendeley, fetch your whole library (handles pagination), display title/authors/year in a table.
-- Everything else in the plan (correction suggestions, review UI, write-back, citation style customization, etc.) is not built yet.
+Done and working end-to-end:
+
+- **M1** — log in with Mendeley, fetch your whole library (handles pagination).
+- **M2** — title suggestions from CrossRef (by DOI) and local ALL-CAPS/all-lowercase fixes.
+- **M3** — review table (flagged docs only) with a per-field before/after diff panel; accept, reject, or edit each suggestion.
+- **M4** — apply accepted changes back to Mendeley, with a confirmation step, per-document progress, and a downloadable JSON backup of every change.
+- **M5** — citation style/export panel: customize per-element formatting with a live preview and export a text bibliography.
+- **M6** — author-name correction (from CrossRef), a "must review" safety flag for suspected merged-PDF entries, confidence tiers (colored badges), missing-DOI lookup via CrossRef search, and journal-name consistency across the library.
+
+Not built yet: applying the custom style to Word citations via CSL (approach undecided), a PDF side-by-side author-verification view, and final polish for public hosting.

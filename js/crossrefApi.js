@@ -26,3 +26,30 @@ export async function lookupByDoi(doi) {
   cache.set(doi, work);
   return work;
 }
+
+const searchCache = new Map();
+
+// Fuzzy bibliographic search, used to find a DOI for documents that have none.
+// Returns up to `rows` candidate works (may be empty); callers must score the
+// results themselves rather than trust CrossRef's ranking.
+export async function searchByTitleAuthor(query, rows = 5) {
+  if (searchCache.has(query)) return searchCache.get(query);
+
+  const params = new URLSearchParams({ "query.bibliographic": query, rows: String(rows) });
+  if (CROSSREF_MAILTO) params.set("mailto", CROSSREF_MAILTO);
+  const url = `${API_BASE}/works?${params.toString()}`;
+
+  let items = [];
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      items = (data.message && data.message.items) || [];
+    }
+  } catch {
+    items = [];
+  }
+
+  searchCache.set(query, items);
+  return items;
+}

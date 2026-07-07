@@ -1,4 +1,4 @@
-import { lookupByDoi } from "../crossrefApi.js";
+import { lookupByDoi, searchByTitleAuthor } from "../crossrefApi.js";
 import { needsTitleCaseFix, toTitleCase } from "./titleCase.js";
 import {
   authorListToString,
@@ -6,11 +6,16 @@ import {
   authorsEqual,
   looksLikeMergedAuthors,
 } from "./authorMatch.js";
+import { titleSimilarity } from "./similarity.js";
 import { tierForField } from "./confidenceTiers.js";
+
+const DOI_MATCH_THRESHOLD = 0.85;
 
 export const FIELD_LABELS = {
   title: "Title",
   authors: "Authors",
+  journal: "Journal",
+  doi: "DOI",
 };
 
 export function fieldLabel(field) {
@@ -22,10 +27,17 @@ function extractCrossrefTitle(work) {
   return work.title[0];
 }
 
+// The confidence source for data taken from a CrossRef record depends on how
+// we found that record: an exact DOI lookup is trusted (auto-suggested), a
+// fuzzy title match is not (needs review).
+function crossrefSource(matchType) {
+  return matchType === "doi" ? "crossref-doi" : "crossref-fuzzy";
+}
+
 // A field diff carries both display strings (current/proposed) and the raw
 // value to send back to Mendeley (writeValue) — those differ for authors,
 // where display is a readable string but the write value is an array.
-function makeField({ current, proposed, writeValue, source, risk = [], editable }) {
+function makeField({ current, proposed, writeValue, source, risk = [], editable, verifyUrlPrefix = null }) {
   return {
     current,
     proposed,
@@ -33,12 +45,13 @@ function makeField({ current, proposed, writeValue, source, risk = [], editable 
     source,
     risk,
     editable,
+    verifyUrlPrefix,
     changed: true,
     tier: tierForField({ source, risk }),
   };
 }
 
-function computeTitleField(doc, work) {
+function computeTitleField(doc, work, matchType) {
   const current = doc.title || "";
 
   const crossrefTitle = extractCrossrefTitle(work);
@@ -47,7 +60,7 @@ function computeTitleField(doc, work) {
       current,
       proposed: crossrefTitle,
       writeValue: crossrefTitle,
-      source: "crossref-doi",
+      source: crossrefSource(matchType),
       editable: true,
     });
   }
@@ -66,7 +79,7 @@ function computeTitleField(doc, work) {
   return null;
 }
 
-function computeAuthorsField(doc, work) {
+function computeAuthorsField(doc, work, matchType) {
   const current = doc.authors || [];
   const proposed = crossrefAuthors(work);
   if (!proposed || proposed.length === 0 || authorsEqual(current, proposed)) return null;
@@ -76,21 +89,98 @@ function computeAuthorsField(doc, work) {
     current: authorListToString(current),
     proposed: authorListToString(proposed),
     writeValue: proposed,
-    source: "crossref-doi",
+    source: crossrefSource(matchType),
     risk,
     editable: false,
   });
 }
 
-export async function computeDocumentDiff(doc) {
-  const doi = doc.identifiers && doc.identifiers.doi;
-  const work = doi ? await lookupByDoi(doi) : null;
+function computeJournalField(context) {
+  const suggestion = context.journalSuggestion;
+  if (!suggestion) return null;
+  return makeField({
+    current: suggestion.current,
+    proposed: suggestion.proposed,
+    writeValue: suggestion.proposed,
+    source: "library-cluster",
+    editable: true,
+  });
+}
+
+function crossrefYear(work) {
+  const parts = work.issued && work.issued["date-parts"];
+  return parts && parts[0] && parts[0][0];
+}
+
+// For documents with no DOI: fuzzy-search CrossRef and return the best-matching
+// record, but only if its title is a strong match and the year lines up. The
+// returned record (when confident) is reused to propose title/authors/DOI, so
+// one lookup fixes several fields at once. Kept conservative to avoid matching
+// the wrong paper.
+async function fuzzyFindWork(doc) {
+  const title = doc.title;
+  if (!title) return null;
+
+  const firstAuthor = (doc.authors && doc.authors[0] && doc.authors[0].last_name) || "";
+  const query = [title, firstAuthor, doc.year].filter(Boolean).join(" ");
+  const items = await searchByTitleAuthor(query);
+
+  let best = null;
+  let bestScore = 0;
+  let bestRawScore = 0;
+  for (const item of items) {
+    const itemTitle = Array.isArray(item.title) ? item.title[0] : "";
+    const rawScore = titleSimilarity(itemTitle, title);
+    const itemYear = crossrefYear(item);
+    const yearOk = !doc.year || !itemYear || Math.abs(Number(doc.year) - itemYear) <= 1;
+    if (!yearOk) continue;
+
+    // When titles tie, prefer the published journal article over preprints
+    // ("posted-content") and other variants, which often share a near-identical
+    // title but carry a different DOI.
+    const typeBonus = item.type === "journal-article" ? 0.03 : 0;
+    const adjustedScore = rawScore + typeBonus;
+    if (adjustedScore > bestScore) {
+      best = item;
+      bestScore = adjustedScore;
+      bestRawScore = rawScore;
+    }
+  }
+
+  return best && bestRawScore >= DOI_MATCH_THRESHOLD ? best : null;
+}
+
+export async function computeDocumentDiff(doc, context = {}) {
+  const existingDoi = doc.identifiers && doc.identifiers.doi;
+
+  let work = null;
+  let matchType = null;
+  if (existingDoi) {
+    work = await lookupByDoi(existingDoi);
+    matchType = "doi";
+  } else {
+    work = await fuzzyFindWork(doc);
+    if (work) matchType = "fuzzy";
+  }
 
   const fields = {};
-  const title = computeTitleField(doc, work);
+  const title = computeTitleField(doc, work, matchType);
   if (title) fields.title = title;
-  const authors = computeAuthorsField(doc, work);
+  const authors = computeAuthorsField(doc, work, matchType);
   if (authors) fields.authors = authors;
+  const journal = computeJournalField(context);
+  if (journal) fields.journal = journal;
+
+  if (!existingDoi && work && work.DOI) {
+    fields.doi = makeField({
+      current: "(no DOI)",
+      proposed: work.DOI,
+      writeValue: work.DOI,
+      source: "crossref-fuzzy",
+      editable: true,
+      verifyUrlPrefix: "https://doi.org/",
+    });
+  }
 
   if (Object.keys(fields).length === 0) return null;
   return { documentId: doc.id, fields };

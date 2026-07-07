@@ -58,6 +58,23 @@ function renderFieldBlock(doc, field, info, onDecisionChange) {
         : info.proposed;
     proposedP.appendChild(editInput);
     getValue = () => editInput.value;
+
+    // For fields we can verify against an external page (e.g. a DOI), show a
+    // live link that opens the current value so the user can confirm it points
+    // at the right paper before accepting.
+    if (info.verifyUrlPrefix) {
+      const verifyLink = document.createElement("a");
+      verifyLink.target = "_blank";
+      verifyLink.rel = "noopener";
+      verifyLink.textContent = "↗ Open to check it's the right paper";
+      verifyLink.className = "verify-link";
+      const updateHref = () => {
+        verifyLink.href = info.verifyUrlPrefix + editInput.value.trim();
+      };
+      updateHref();
+      editInput.addEventListener("input", updateHref);
+      proposedP.append(" ", verifyLink);
+    }
   } else {
     proposedP.append(info.proposed);
     getValue = () => info.writeValue;

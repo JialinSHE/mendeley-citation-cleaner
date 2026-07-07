@@ -1,6 +1,7 @@
 import { isLoggedIn, clearToken } from "./auth.js";
 import { fetchAllDocuments } from "./mendeleyApi.js";
 import { computeDocumentDiff } from "./correction/diffEngine.js";
+import { buildJournalCanonicalMap } from "./correction/journalNormalize.js";
 import { state } from "./state.js";
 import { renderReviewTable } from "./ui/reviewTable.js";
 import { renderDiffPanel } from "./ui/diffPanel.js";
@@ -83,8 +84,11 @@ downloadBackupBtn.addEventListener("click", downloadChangeLog);
 // Computed one document at a time (not in parallel) to avoid bursting
 // CrossRef with hundreds of simultaneous requests for a large library.
 async function computeAllDiffs(documents) {
+  const journalMap = buildJournalCanonicalMap(documents);
   for (const doc of documents) {
-    const diff = await computeDocumentDiff(doc);
+    const diff = await computeDocumentDiff(doc, {
+      journalSuggestion: journalMap.get(doc.id),
+    });
     if (diff) {
       state.diffsByDocId.set(doc.id, diff);
       refreshView();
