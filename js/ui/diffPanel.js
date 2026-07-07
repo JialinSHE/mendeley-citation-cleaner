@@ -31,6 +31,38 @@ function renderCasingButtons(editInput) {
   return wrap;
 }
 
+// Quick buttons to fill the journal box with CrossRef's full name or its
+// abbreviation, so the user can choose which form to store.
+function renderJournalButtons(editInput, info) {
+  if (!info.journalFull && !info.journalAbbrev) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "casing-buttons";
+
+  if (info.journalFull) {
+    const fullBtn = document.createElement("button");
+    fullBtn.type = "button";
+    fullBtn.textContent = "Use full name";
+    fullBtn.title = info.journalFull;
+    fullBtn.addEventListener("click", () => {
+      editInput.value = info.journalFull;
+      editInput.dispatchEvent(new Event("input"));
+    });
+    wrap.appendChild(fullBtn);
+  }
+  if (info.journalAbbrev) {
+    const abbrevBtn = document.createElement("button");
+    abbrevBtn.type = "button";
+    abbrevBtn.textContent = "Use abbreviation";
+    abbrevBtn.title = info.journalAbbrev;
+    abbrevBtn.addEventListener("click", () => {
+      editInput.value = info.journalAbbrev;
+      editInput.dispatchEvent(new Event("input"));
+    });
+    wrap.appendChild(abbrevBtn);
+  }
+  return wrap;
+}
+
 const FIELD_ORDER = ["title", "authors", "doi", "journal", "year", "volume", "issue", "pages"];
 
 function orderedFields(diff) {
@@ -155,6 +187,13 @@ function renderFieldBlock(doc, field, info, onDecisionChange, onRecheckDoi) {
     // user can choose the form they want in their library.
     if (field === "title") {
       proposedP.appendChild(renderCasingButtons(editInput));
+    }
+
+    // The journal box gets "full name" / "abbreviation" buttons when CrossRef
+    // provides both forms.
+    if (field === "journal") {
+      const journalButtons = renderJournalButtons(editInput, info);
+      if (journalButtons) proposedP.appendChild(journalButtons);
     }
 
     // For fields we can verify against an external page (e.g. a DOI), show a

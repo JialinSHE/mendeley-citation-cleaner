@@ -121,8 +121,33 @@ function crossrefContainer(work) {
   return work && Array.isArray(work["container-title"]) ? work["container-title"][0] : null;
 }
 
+function crossrefShortContainer(work) {
+  return work && Array.isArray(work["short-container-title"]) ? work["short-container-title"][0] : null;
+}
+
 function normalizeName(name) {
   return (name || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function hasPageRange(text) {
+  return /[-–—]/.test(text);
+}
+
+// Pages need care: CrossRef sometimes returns only the first page ("637") when
+// the entry already has the full range ("637-642"). Never replace a stored
+// range with a single page; otherwise behave like any other field.
+function computePagesField(currentRaw, proposedRaw, source) {
+  const current = (currentRaw == null ? "" : String(currentRaw)).trim();
+  const proposed = (proposedRaw == null ? "" : String(proposedRaw)).trim();
+  if (!proposed || proposed === current) return null;
+  if (hasPageRange(current) && !hasPageRange(proposed)) return null;
+  return makeField({
+    current: current || "(empty)",
+    proposed,
+    writeValue: proposed,
+    source,
+    editable: true,
+  });
 }
 
 // Journal name: prefer the library-wide clustering suggestion (consistency
@@ -233,13 +258,20 @@ export async function computeDocumentDiff(doc, context = {}) {
     if (work) matchType = "fuzzy";
   }
 
+  // CrossRef provides both the full journal name and its abbreviation; attach
+  // both to the journal field so the user can pick either.
+  const journalAlts = { full: crossrefContainer(work), abbrev: crossrefShortContainer(work) };
+
   const fields = {};
   const title = computeTitleField(doc, work, matchType);
   if (title) fields.title = title;
   const authors = computeAuthorsField(doc, work, matchType);
   if (authors) fields.authors = authors;
   const journal = computeJournalField(doc, work, matchType, context);
-  if (journal) fields.journal = journal;
+  if (journal) {
+    attachJournalAlternatives(journal, journalAlts);
+    fields.journal = journal;
+  }
 
   if (work) {
     const src = crossrefSource(matchType);
@@ -249,7 +281,7 @@ export async function computeDocumentDiff(doc, context = {}) {
     if (volume) fields.volume = volume;
     const issue = computeSimpleField(doc.issue, work.issue, src);
     if (issue) fields.issue = issue;
-    const pages = computeSimpleField(doc.pages, work.page, src);
+    const pages = computePagesField(doc.pages, work.page, src);
     if (pages) fields.pages = pages;
   }
 
@@ -296,13 +328,26 @@ export async function computeDocumentDiff(doc, context = {}) {
 
   // Also always surface the remaining bibliographic fields so any of them can
   // be corrected in-tool even when nothing was flagged for them.
-  addVerifyField(fields, "journal", doc.source);
+  if (!fields.journal) {
+    const jf = makeVerifyField({
+      current: (doc.source || "").trim() || "(empty)",
+      writeValue: doc.source || "",
+      editable: true,
+    });
+    attachJournalAlternatives(jf, journalAlts);
+    fields.journal = jf;
+  }
   addVerifyField(fields, "year", doc.year);
   addVerifyField(fields, "volume", doc.volume);
   addVerifyField(fields, "issue", doc.issue);
   addVerifyField(fields, "pages", doc.pages);
 
   return { documentId: doc.id, fields };
+}
+
+function attachJournalAlternatives(field, alts) {
+  if (alts.full) field.journalFull = alts.full;
+  if (alts.abbrev) field.journalAbbrev = alts.abbrev;
 }
 
 function addVerifyField(fields, key, rawValue) {
