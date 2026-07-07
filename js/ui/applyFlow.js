@@ -11,9 +11,15 @@ export function getAcceptedChanges() {
 
     const fields = {};
     for (const [field, decision] of Object.entries(decisions)) {
-      if (decision.action === "accept") {
-        fields[field] = decision.value;
+      if (decision.action !== "accept") continue;
+      const info = diff.fields[field];
+      // Skip a verify-only section the user accepted without editing it — no
+      // point writing the same value back.
+      if (info && info.verifyOnly) {
+        const original = typeof info.writeValue === "string" ? info.writeValue : "";
+        if (String(decision.value) === String(original)) continue;
       }
+      fields[field] = decision.value;
     }
     if (Object.keys(fields).length > 0) {
       changes.push({ doc, fields, diff });
@@ -45,8 +51,9 @@ export function renderApplySummary(container, changes) {
 }
 
 // Translate our internal field names into Mendeley's document schema:
-// journal is stored as "source", and DOI lives inside the nested "identifiers"
-// object (merged with any existing IDs so we don't wipe ISSN/ISBN/etc).
+// journal is stored as "source", DOI lives inside the nested "identifiers"
+// object (merged with any existing IDs so we don't wipe ISSN/ISBN/etc), and
+// year must be a number. Volume/issue/pages map to the same names as strings.
 function buildPatchBody(doc, fields) {
   const body = {};
   for (const [field, value] of Object.entries(fields)) {
@@ -54,6 +61,8 @@ function buildPatchBody(doc, fields) {
       body.source = value;
     } else if (field === "doi") {
       body.identifiers = { ...(doc.identifiers || {}), doi: value };
+    } else if (field === "year") {
+      body.year = Number(value);
     } else {
       body[field] = value;
     }

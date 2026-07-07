@@ -127,3 +127,33 @@ th, td {
   font-size: 0.9rem;
   white-space: nowrap;
 }
+
+.verify-field {
+  background: #f7f9fc;
+  border-left: 3px solid #90a4ae;
+  padding: 0.5rem 0.75rem;
+  border-radius: 3px;
+}
+
+.verify-note {
+  font-size: 0.8rem;
+  font-weight: normal;
+  font-style: italic;
+  color: #667;
+}
+
+.pdf-viewer {
+  margin-top: 1rem;
+  border-top: 1px solid #ddd;
+  padding-top: 1rem;
+}
+
+.pdf-output {
+  margin-top: 0.5rem;
+}
+
+.pdf-canvas {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #ccc;
+}

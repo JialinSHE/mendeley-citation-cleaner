@@ -16,6 +16,10 @@ export const FIELD_LABELS = {
   authors: "Authors",
   journal: "Journal",
   doi: "DOI",
+  year: "Year",
+  volume: "Volume",
+  issue: "Issue",
+  pages: "Pages",
 };
 
 export function fieldLabel(field) {
@@ -48,6 +52,24 @@ function makeField({ current, proposed, writeValue, source, risk = [], editable,
     verifyUrlPrefix,
     changed: true,
     tier: tierForField({ source, risk }),
+  };
+}
+
+// A "verify only" section: no change is proposed, but DOI/title/authors are
+// always shown on a flagged document so the user can double-check them — e.g.
+// to catch a wrong stored DOI that would poison the CrossRef-derived fields.
+function makeVerifyField({ current, writeValue, editable, verifyUrlPrefix = null }) {
+  return {
+    current,
+    proposed: current,
+    writeValue,
+    source: "current",
+    risk: [],
+    editable,
+    verifyUrlPrefix,
+    verifyOnly: true,
+    changed: false,
+    tier: null,
   };
 }
 
@@ -95,21 +117,58 @@ function computeAuthorsField(doc, work, matchType) {
   });
 }
 
-function computeJournalField(context) {
+function crossrefContainer(work) {
+  return work && Array.isArray(work["container-title"]) ? work["container-title"][0] : null;
+}
+
+// Journal name: prefer the library-wide clustering suggestion (consistency
+// across entries); otherwise, if the journal is missing entirely, fill it from
+// the matched CrossRef record.
+function computeJournalField(doc, work, matchType, context) {
   const suggestion = context.journalSuggestion;
-  if (!suggestion) return null;
-  return makeField({
-    current: suggestion.current,
-    proposed: suggestion.proposed,
-    writeValue: suggestion.proposed,
-    source: "library-cluster",
-    editable: true,
-  });
+  if (suggestion) {
+    return makeField({
+      current: suggestion.current,
+      proposed: suggestion.proposed,
+      writeValue: suggestion.proposed,
+      source: "library-cluster",
+      editable: true,
+    });
+  }
+
+  const current = (doc.source || "").trim();
+  const container = crossrefContainer(work);
+  if (!current && container) {
+    return makeField({
+      current: "(empty)",
+      proposed: container,
+      writeValue: container,
+      source: crossrefSource(matchType),
+      editable: true,
+    });
+  }
+  return null;
 }
 
 function crossrefYear(work) {
   const parts = work.issued && work.issued["date-parts"];
   return parts && parts[0] && parts[0][0];
+}
+
+// Generic before/after for a plain bibliographic field (year, volume, issue,
+// pages). Proposes the CrossRef value when it exists and differs from what's
+// stored — including filling an empty field. Skips when they already match.
+function computeSimpleField(currentRaw, proposedRaw, source) {
+  const current = currentRaw == null ? "" : String(currentRaw).trim();
+  const proposed = proposedRaw == null ? "" : String(proposedRaw).trim();
+  if (!proposed || proposed === current) return null;
+  return makeField({
+    current: current || "(empty)",
+    proposed,
+    writeValue: proposed,
+    source,
+    editable: true,
+  });
 }
 
 // For documents with no DOI: fuzzy-search CrossRef and return the best-matching
@@ -168,8 +227,20 @@ export async function computeDocumentDiff(doc, context = {}) {
   if (title) fields.title = title;
   const authors = computeAuthorsField(doc, work, matchType);
   if (authors) fields.authors = authors;
-  const journal = computeJournalField(context);
+  const journal = computeJournalField(doc, work, matchType, context);
   if (journal) fields.journal = journal;
+
+  if (work) {
+    const src = crossrefSource(matchType);
+    const year = computeSimpleField(doc.year, crossrefYear(work), src);
+    if (year) fields.year = year;
+    const volume = computeSimpleField(doc.volume, work.volume, src);
+    if (volume) fields.volume = volume;
+    const issue = computeSimpleField(doc.issue, work.issue, src);
+    if (issue) fields.issue = issue;
+    const pages = computeSimpleField(doc.pages, work.page, src);
+    if (pages) fields.pages = pages;
+  }
 
   if (!existingDoi && work && work.DOI) {
     fields.doi = makeField({
@@ -183,5 +254,31 @@ export async function computeDocumentDiff(doc, context = {}) {
   }
 
   if (Object.keys(fields).length === 0) return null;
+
+  // The document is already flagged; always surface DOI/title/authors for
+  // verification (even when unchanged) so a wrong stored value can be caught.
+  if (!fields.title) {
+    fields.title = makeVerifyField({
+      current: doc.title || "(empty)",
+      writeValue: doc.title || "",
+      editable: true,
+    });
+  }
+  if (!fields.authors) {
+    fields.authors = makeVerifyField({
+      current: authorListToString(doc.authors || []),
+      writeValue: doc.authors || [],
+      editable: false,
+    });
+  }
+  if (!fields.doi) {
+    fields.doi = makeVerifyField({
+      current: existingDoi || "(no DOI)",
+      writeValue: existingDoi || "",
+      editable: true,
+      verifyUrlPrefix: "https://doi.org/",
+    });
+  }
+
   return { documentId: doc.id, fields };
 }

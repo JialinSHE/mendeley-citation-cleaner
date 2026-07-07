@@ -29,6 +29,7 @@ export function tierForField({ source, risk }) {
 export function documentTier(diff) {
   let worst = TIER.AUTO;
   for (const info of Object.values(diff.fields)) {
+    if (info.verifyOnly) continue;
     if (TIER_RANK[info.tier] > TIER_RANK[worst]) worst = info.tier;
   }
   return worst;

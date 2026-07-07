@@ -61,3 +61,23 @@ export async function patchDocument(id, fields) {
   });
   return res.json();
 }
+
+export async function listDocumentFiles(documentId) {
+  const res = await apiFetch(`${API_BASE}/files?document_id=${encodeURIComponent(documentId)}`, {
+    headers: { Accept: "application/vnd.mendeley-file.1+json" },
+  });
+  return res.json();
+}
+
+// Downloads the first attached PDF as a Blob. GET /files/{id} returns a 303 to
+// a temporary signed URL; fetch follows it automatically. This only succeeds if
+// Mendeley's file storage permits cross-origin browser reads — callers must
+// handle the failure case (CORS block) gracefully.
+export async function fetchDocumentPdfBlob(documentId) {
+  const files = await listDocumentFiles(documentId);
+  const pdf = files.find((f) => f.mime_type === "application/pdf");
+  if (!pdf) throw new Error("This document has no PDF attached in Mendeley.");
+
+  const res = await apiFetch(`${API_BASE}/files/${pdf.id}`);
+  return res.blob();
+}

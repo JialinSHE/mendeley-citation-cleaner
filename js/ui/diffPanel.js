@@ -1,6 +1,16 @@
 import { getDecision, setDecision } from "../state.js";
 import { fieldLabel } from "../correction/diffEngine.js";
 import { TIER, TIER_LABEL } from "../correction/confidenceTiers.js";
+import { fetchDocumentPdfBlob } from "../mendeleyApi.js";
+import { renderFirstPage } from "./pdfViewer.js";
+
+const FIELD_ORDER = ["title", "authors", "doi", "journal", "year", "volume", "issue", "pages"];
+
+function orderedFields(diff) {
+  const known = FIELD_ORDER.filter((f) => diff.fields[f]);
+  const rest = Object.keys(diff.fields).filter((f) => !FIELD_ORDER.includes(f));
+  return [...known, ...rest];
+}
 
 export function renderDiffPanel(container, doc, diff, onDecisionChange) {
   container.innerHTML = "";
@@ -10,21 +20,63 @@ export function renderDiffPanel(container, doc, diff, onDecisionChange) {
   heading.textContent = doc.title || "(untitled)";
   container.appendChild(heading);
 
-  for (const [field, info] of Object.entries(diff.fields)) {
-    container.appendChild(renderFieldBlock(doc, field, info, onDecisionChange));
+  for (const field of orderedFields(diff)) {
+    container.appendChild(renderFieldBlock(doc, field, diff.fields[field], onDecisionChange));
   }
+
+  container.appendChild(renderPdfViewer(doc));
+}
+
+// Lets the user open the paper's attached PDF (first page) inside the panel to
+// visually confirm authors before applying — the point of the "must review"
+// merged-author flag. Whether the PDF loads depends on Mendeley allowing
+// browser access to the file, so failures are shown as a plain message.
+function renderPdfViewer(doc) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "pdf-viewer";
+
+  const button = document.createElement("button");
+  button.textContent = "View attached PDF (to check authors)";
+
+  const output = document.createElement("div");
+  output.className = "pdf-output";
+
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    output.textContent = "Loading the PDF from Mendeley…";
+    try {
+      const blob = await fetchDocumentPdfBlob(doc.id);
+      await renderFirstPage(output, blob);
+    } catch (err) {
+      output.textContent =
+        `Couldn't show the PDF here: ${err.message} ` +
+        "(Mendeley may not allow opening files directly in the browser — if so, open the paper in Mendeley itself to check.)";
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  wrapper.append(button, output);
+  return wrapper;
 }
 
 function renderFieldBlock(doc, field, info, onDecisionChange) {
   const block = document.createElement("div");
-  block.className = "diff-field";
+  block.className = info.verifyOnly ? "diff-field verify-field" : "diff-field";
 
   const label = document.createElement("h3");
   label.textContent = fieldLabel(field);
-  const tierBadge = document.createElement("span");
-  tierBadge.className = `tier-badge tier-${info.tier}`;
-  tierBadge.textContent = TIER_LABEL[info.tier];
-  label.append(" ", tierBadge);
+  if (info.verifyOnly) {
+    const note = document.createElement("span");
+    note.className = "verify-note";
+    note.textContent = "no change suggested — check, and edit only if needed";
+    label.append(" ", note);
+  } else {
+    const tierBadge = document.createElement("span");
+    tierBadge.className = `tier-badge tier-${info.tier}`;
+    tierBadge.textContent = TIER_LABEL[info.tier];
+    label.append(" ", tierBadge);
+  }
   block.appendChild(label);
 
   if (info.risk.includes("merged-authors")) {
@@ -37,14 +89,20 @@ function renderFieldBlock(doc, field, info, onDecisionChange) {
 
   const currentP = document.createElement("p");
   const currentLabel = document.createElement("strong");
-  currentLabel.textContent = "Current: ";
+  currentLabel.textContent = info.verifyOnly ? "Stored value: " : "Current: ";
   currentP.appendChild(currentLabel);
   currentP.append(info.current);
   block.appendChild(currentP);
 
+  // A verify-only, non-editable section (authors) is display only — nothing to
+  // propose or accept.
+  if (info.verifyOnly && !info.editable) {
+    return block;
+  }
+
   const proposedP = document.createElement("p");
   const proposedLabel = document.createElement("strong");
-  proposedLabel.textContent = "Proposed: ";
+  proposedLabel.textContent = info.verifyOnly ? "Corrected value: " : "Proposed: ";
   proposedP.appendChild(proposedLabel);
 
   let getValue;
@@ -52,16 +110,21 @@ function renderFieldBlock(doc, field, info, onDecisionChange) {
     const editInput = document.createElement("input");
     editInput.type = "text";
     const existingDecision = getDecision(doc.id, field);
+    // Verify-only fields start from the real stored value (so a bad DOI is shown
+    // and can be corrected); suggested fields start from the proposal.
+    const initial = info.verifyOnly
+      ? (typeof info.writeValue === "string" ? info.writeValue : "")
+      : info.proposed;
     editInput.value =
       existingDecision && typeof existingDecision.value === "string"
         ? existingDecision.value
-        : info.proposed;
+        : initial;
     proposedP.appendChild(editInput);
     getValue = () => editInput.value;
 
     // For fields we can verify against an external page (e.g. a DOI), show a
     // live link that opens the current value so the user can confirm it points
-    // at the right paper before accepting.
+    // at the right paper.
     if (info.verifyUrlPrefix) {
       const verifyLink = document.createElement("a");
       verifyLink.target = "_blank";
@@ -81,10 +144,12 @@ function renderFieldBlock(doc, field, info, onDecisionChange) {
   }
   block.appendChild(proposedP);
 
-  const sourceP = document.createElement("p");
-  sourceP.className = "source-note";
-  sourceP.textContent = `Source: ${info.source}`;
-  block.appendChild(sourceP);
+  if (!info.verifyOnly) {
+    const sourceP = document.createElement("p");
+    sourceP.className = "source-note";
+    sourceP.textContent = `Source: ${info.source}`;
+    block.appendChild(sourceP);
+  }
 
   const acceptBtn = document.createElement("button");
   acceptBtn.textContent = "Accept";

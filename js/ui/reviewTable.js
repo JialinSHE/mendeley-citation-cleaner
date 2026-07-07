@@ -29,8 +29,9 @@ export function renderReviewTable({ tbody, documents, diffsByDocId, showAll, aut
       const fieldText = document.createElement("span");
       fieldText.textContent =
         " " +
-        Object.keys(diff.fields)
-          .map((field) => {
+        Object.entries(diff.fields)
+          .filter(([, info]) => !info.verifyOnly)
+          .map(([field]) => {
             const decision = getDecision(doc.id, field);
             return decision ? `${fieldLabel(field)} (${decision.action})` : fieldLabel(field);
           })

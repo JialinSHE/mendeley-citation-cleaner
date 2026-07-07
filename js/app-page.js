@@ -47,7 +47,9 @@ function openReview(doc, diff) {
   refreshView();
 }
 
-function refreshView() {
+// Re-renders the table and apply summary only. Used while the library is still
+// being scanned, so incoming suggestions don't wipe an open diff panel / PDF.
+function refreshTable() {
   renderReviewTable({
     tbody,
     documents: state.documents,
@@ -56,16 +58,22 @@ function refreshView() {
     authorNames,
     onRowClick: openReview,
   });
-  if (currentReview) {
-    renderDiffPanel(diffPanelEl, currentReview.doc, currentReview.diff, refreshView);
-  }
 
   const changes = getAcceptedChanges();
   renderApplySummary(applySummaryEl, changes);
   applyBtn.disabled = changes.length === 0;
 }
 
-showAllToggle.addEventListener("change", refreshView);
+// Full refresh including the diff panel. Only used on user actions (opening a
+// document, accepting/rejecting), never on the background scan.
+function refreshView() {
+  refreshTable();
+  if (currentReview) {
+    renderDiffPanel(diffPanelEl, currentReview.doc, currentReview.diff, refreshView);
+  }
+}
+
+showAllToggle.addEventListener("change", refreshTable);
 
 applyBtn.addEventListener("click", async () => {
   const changes = getAcceptedChanges();
@@ -91,7 +99,7 @@ async function computeAllDiffs(documents) {
     });
     if (diff) {
       state.diffsByDocId.set(doc.id, diff);
-      refreshView();
+      refreshTable();
     }
   }
 }
