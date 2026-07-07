@@ -2,7 +2,14 @@
 
 A free tool to batch-fix messy citation metadata already sitting in your Mendeley library — wrong author order, ALL-CAPS or all-lowercase titles, inconsistent journal name abbreviations, and missing DOIs — and to customize how your citations are displayed or exported.
 
-> Status: early development. Not yet usable end-to-end.
+## Use it (no installation)
+
+👉 **https://jialinshe.github.io/mendeley-citation-cleaner/**
+
+Open the link, click **Connect to Mendeley**, and log in with **your own** Mendeley
+account. You log in on Mendeley's own page — this tool never sees your password,
+and nothing in your library changes unless you review a suggestion and click
+**Apply**. (Everything runs in your browser; there is no server storing anything.)
 
 ## Why
 
@@ -19,22 +26,26 @@ Mendeley's automatic metadata extraction from PDFs sometimes gets it wrong, espe
 
 See [PRIVACY.md](PRIVACY.md). Short version: this is a static web app with no backend — nothing about your library or your login ever touches a server other than Mendeley's and CrossRef's own.
 
-## Development
+## Self-hosting your own copy (developers)
+
+You do **not** need to do any of this to *use* the tool — just open the link
+above. This section is only for running your own copy or contributing.
 
 Plain HTML/CSS/JavaScript, no build step, no dependencies required to run. See `CLAUDE.md` for the full architecture and build-order notes.
 
-### One-time setup: register the app with Mendeley
+`js/config.js` in this repo is set up for the hosted version. To run your own,
+you need your own Mendeley app:
 
 1. Go to https://dev.mendeley.com/myapps.html and sign in with your Mendeley account.
 2. Register a new application. For **Redirect URL**, use where `callback.html` will be served from — for local testing, `http://localhost:8000/callback.html`.
 3. Copy the **Client ID** it gives you.
-4. Copy `js/config.example.js` to `js/config.js`, then fill in your values:
+4. Edit `js/config.js` (or start from `js/config.example.js`) with your values:
    ```js
    export const MENDELEY_CLIENT_ID = "your-client-id-here";
    export const REDIRECT_URI = "http://localhost:8000/callback.html";
    export const CROSSREF_MAILTO = "you@example.com";
    ```
-   (`js/config.js` is git-ignored, so your details are never committed.)
+   The Client ID is a public value (safe to commit); there is no secret.
 
 ### Running locally
 
@@ -48,15 +59,18 @@ py tools/dev_server.py
 
 Then open http://localhost:8000 in your browser.
 
-### Current status
+## Features
 
-Done and working end-to-end:
+- Log in with Mendeley and scan your whole library.
+- Suggestions for **title, authors, DOI, journal, year, volume, issue, and pages**, sourced from [CrossRef](https://www.crossref.org/) (by DOI, or by a careful fuzzy title/author search for entries with no DOI).
+- One-click **Sentence case / Title Case** buttons for titles.
+- **Re-check with a corrected DOI**: fix a wrong DOI and refresh all the other details from the right record.
+- Always-visible **DOI / Title / Authors** verification sections, plus a **"must review"** safety flag for suspected merged-PDF entries and colored **confidence tiers**.
+- **View the attached PDF** in-app to confirm authors before applying.
+- **Journal-name consistency** across your library (matched by ISSN).
+- Review, accept/reject/edit, then **apply** — with a downloadable JSON backup of every change.
+- A **citation style/export** panel: customize per-element formatting with a live preview and export a text bibliography.
 
-- **M1** — log in with Mendeley, fetch your whole library (handles pagination).
-- **M2** — title suggestions from CrossRef (by DOI) and local ALL-CAPS/all-lowercase fixes.
-- **M3** — review table (flagged docs only) with a per-field before/after diff panel; accept, reject, or edit each suggestion.
-- **M4** — apply accepted changes back to Mendeley, with a confirmation step, per-document progress, and a downloadable JSON backup of every change.
-- **M5** — citation style/export panel: customize per-element formatting with a live preview and export a text bibliography.
-- **M6** — author-name correction (from CrossRef), a "must review" safety flag for suspected merged-PDF entries, confidence tiers (colored badges), missing-DOI lookup via CrossRef search, and journal-name consistency across the library.
+Nothing is ever written to your library without your explicit review and Apply click.
 
-Not built yet: applying the custom style to Word citations via CSL (approach undecided), a PDF side-by-side author-verification view, and final polish for public hosting.
+Not built: applying your custom style to Word citations via CSL (Word citation styling is handled by Mendeley's own [CSL editor](https://www.mendeley.com/guides/csl-editor)).

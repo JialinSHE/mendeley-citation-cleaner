@@ -2,6 +2,3 @@
 Thumbs.db
 node_modules/
 *.log
-
-# Personal credentials — each user creates their own from config.example.js
-js/config.js
