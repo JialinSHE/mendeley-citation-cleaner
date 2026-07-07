@@ -11,3 +11,7 @@ export const REDIRECT_URI = "";
 // Your email — sent with CrossRef requests so they land in CrossRef's faster
 // "polite pool". Optional but recommended.
 export const CROSSREF_MAILTO = "";
+
+// Optional: a Formspree endpoint (https://formspree.io) that powers the in-app
+// feedback form. Leave blank to hide the feedback form.
+export const FORMSPREE_ENDPOINT = "";

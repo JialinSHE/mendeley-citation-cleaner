@@ -13,6 +13,9 @@ import {
   downloadChangeLog,
 } from "./ui/applyFlow.js";
 import { renderStylePanel } from "./style/stylePanel.js";
+import { renderFeedbackForm } from "./ui/feedbackForm.js";
+
+renderFeedbackForm(document.getElementById("feedback-container"));
 
 if (!isLoggedIn()) {
   window.location.href = "index.html";

@@ -13,3 +13,8 @@ export const REDIRECT_URI = "https://jialinshe.github.io/mendeley-citation-clean
 // Optional contact email sent to CrossRef for the faster "polite pool".
 // Left blank on the public build to avoid publishing a personal address.
 export const CROSSREF_MAILTO = "";
+
+// Formspree endpoint for the in-app feedback form, e.g.
+// "https://formspree.io/f/abcdwxyz". Sign up free at https://formspree.io,
+// create a form, and paste its endpoint URL here. Leave blank to hide the form.
+export const FORMSPREE_ENDPOINT = "";
