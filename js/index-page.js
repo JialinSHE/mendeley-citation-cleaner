@@ -1,9 +1,12 @@
 import { MENDELEY_CLIENT_ID, REDIRECT_URI } from "./config.js";
 import { buildAuthUrl, isLoggedIn } from "./auth.js";
+import { renderFeedbackForm } from "./ui/feedbackForm.js";
 
 if (isLoggedIn()) {
   window.location.href = "app.html";
 }
+
+renderFeedbackForm(document.getElementById("feedback-container"));
 
 const connectBtn = document.getElementById("connect-btn");
 const errorMsg = document.getElementById("error-msg");
