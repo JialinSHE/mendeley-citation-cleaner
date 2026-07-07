@@ -3,6 +3,33 @@ import { fieldLabel } from "../correction/diffEngine.js";
 import { TIER, TIER_LABEL } from "../correction/confidenceTiers.js";
 import { fetchDocumentPdfBlob } from "../mendeleyApi.js";
 import { renderFirstPage } from "./pdfViewer.js";
+import { toTitleCase, toSentenceCase } from "../correction/titleCase.js";
+
+// Quick-casing buttons for the title box, so the user can always pick the form
+// they want regardless of what (if anything) was auto-suggested.
+function renderCasingButtons(editInput) {
+  const wrap = document.createElement("div");
+  wrap.className = "casing-buttons";
+
+  const sentenceBtn = document.createElement("button");
+  sentenceBtn.type = "button";
+  sentenceBtn.textContent = "Sentence case";
+  sentenceBtn.addEventListener("click", () => {
+    editInput.value = toSentenceCase(editInput.value);
+    editInput.dispatchEvent(new Event("input"));
+  });
+
+  const titleBtn = document.createElement("button");
+  titleBtn.type = "button";
+  titleBtn.textContent = "Title Case";
+  titleBtn.addEventListener("click", () => {
+    editInput.value = toTitleCase(editInput.value);
+    editInput.dispatchEvent(new Event("input"));
+  });
+
+  wrap.append(sentenceBtn, titleBtn);
+  return wrap;
+}
 
 const FIELD_ORDER = ["title", "authors", "doi", "journal", "year", "volume", "issue", "pages"];
 
@@ -12,7 +39,7 @@ function orderedFields(diff) {
   return [...known, ...rest];
 }
 
-export function renderDiffPanel(container, doc, diff, onDecisionChange) {
+export function renderDiffPanel(container, doc, diff, onDecisionChange, onRecheckDoi) {
   container.innerHTML = "";
   container.hidden = false;
 
@@ -21,7 +48,9 @@ export function renderDiffPanel(container, doc, diff, onDecisionChange) {
   container.appendChild(heading);
 
   for (const field of orderedFields(diff)) {
-    container.appendChild(renderFieldBlock(doc, field, diff.fields[field], onDecisionChange));
+    container.appendChild(
+      renderFieldBlock(doc, field, diff.fields[field], onDecisionChange, onRecheckDoi)
+    );
   }
 
   container.appendChild(renderPdfViewer(doc));
@@ -60,7 +89,7 @@ function renderPdfViewer(doc) {
   return wrapper;
 }
 
-function renderFieldBlock(doc, field, info, onDecisionChange) {
+function renderFieldBlock(doc, field, info, onDecisionChange, onRecheckDoi) {
   const block = document.createElement("div");
   block.className = info.verifyOnly ? "diff-field verify-field" : "diff-field";
 
@@ -122,6 +151,12 @@ function renderFieldBlock(doc, field, info, onDecisionChange) {
     proposedP.appendChild(editInput);
     getValue = () => editInput.value;
 
+    // The title box gets one-click Sentence case / Title Case buttons so the
+    // user can choose the form they want in their library.
+    if (field === "title") {
+      proposedP.appendChild(renderCasingButtons(editInput));
+    }
+
     // For fields we can verify against an external page (e.g. a DOI), show a
     // live link that opens the current value so the user can confirm it points
     // at the right paper.
@@ -137,6 +172,20 @@ function renderFieldBlock(doc, field, info, onDecisionChange) {
       updateHref();
       editInput.addEventListener("input", updateHref);
       proposedP.append(" ", verifyLink);
+    }
+
+    // On the DOI field, let the user re-run the analysis using the DOI they
+    // typed, so all the other fields refresh from the correct record.
+    if (field === "doi" && onRecheckDoi) {
+      const recheckBtn = document.createElement("button");
+      recheckBtn.type = "button";
+      recheckBtn.className = "recheck-btn";
+      recheckBtn.textContent = "Re-check details with this DOI";
+      recheckBtn.addEventListener("click", () => {
+        const value = editInput.value.trim();
+        if (value) onRecheckDoi(doc, value);
+      });
+      proposedP.append(" ", recheckBtn);
     }
   } else {
     proposedP.append(info.proposed);

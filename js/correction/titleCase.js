@@ -26,3 +26,10 @@ export function toTitleCase(text) {
     })
     .join(" ");
 }
+
+// Sentence case: everything lowercase except the first letter. Proper nouns
+// can't be detected automatically, so the user can hand-edit those after.
+export function toSentenceCase(text) {
+  const lower = text.toLowerCase();
+  return lower.replace(/[a-z]/, (c) => c.toUpperCase());
+}

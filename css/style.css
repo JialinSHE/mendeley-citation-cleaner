@@ -128,6 +128,21 @@ th, td {
   white-space: nowrap;
 }
 
+.casing-buttons {
+  margin-top: 0.4rem;
+}
+
+.casing-buttons button {
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+  margin-right: 0.4rem;
+}
+
+.recheck-btn {
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+}
+
 .verify-field {
   background: #f7f9fc;
   border-left: 3px solid #90a4ae;

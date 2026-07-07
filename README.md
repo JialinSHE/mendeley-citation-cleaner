@@ -28,11 +28,13 @@ Plain HTML/CSS/JavaScript, no build step, no dependencies required to run. See `
 1. Go to https://dev.mendeley.com/myapps.html and sign in with your Mendeley account.
 2. Register a new application. For **Redirect URL**, use where `callback.html` will be served from — for local testing, `http://localhost:8000/callback.html`.
 3. Copy the **Client ID** it gives you.
-4. Open `js/config.js` and fill in:
+4. Copy `js/config.example.js` to `js/config.js`, then fill in your values:
    ```js
    export const MENDELEY_CLIENT_ID = "your-client-id-here";
    export const REDIRECT_URI = "http://localhost:8000/callback.html";
+   export const CROSSREF_MAILTO = "you@example.com";
    ```
+   (`js/config.js` is git-ignored, so your details are never committed.)
 
 ### Running locally
 

@@ -211,10 +211,16 @@ async function fuzzyFindWork(doc) {
 
 export async function computeDocumentDiff(doc, context = {}) {
   const existingDoi = doc.identifiers && doc.identifiers.doi;
+  // A user-supplied DOI (from "re-check with this DOI") overrides whatever is
+  // stored and is treated as an exact, authoritative lookup.
+  const overrideDoi = context.overrideDoi ? context.overrideDoi.trim() : null;
 
   let work = null;
   let matchType = null;
-  if (existingDoi) {
+  if (overrideDoi) {
+    work = await lookupByDoi(overrideDoi);
+    if (work) matchType = "doi";
+  } else if (existingDoi) {
     work = await lookupByDoi(existingDoi);
     matchType = "doi";
   } else {
@@ -242,12 +248,15 @@ export async function computeDocumentDiff(doc, context = {}) {
     if (pages) fields.pages = pages;
   }
 
-  if (!existingDoi && work && work.DOI) {
+  // Propose a DOI change from a user-supplied override, or fill a missing DOI
+  // from a fuzzy match.
+  const proposedDoi = overrideDoi || (!existingDoi && work && work.DOI ? work.DOI : null);
+  if (proposedDoi && proposedDoi !== existingDoi) {
     fields.doi = makeField({
-      current: "(no DOI)",
-      proposed: work.DOI,
-      writeValue: work.DOI,
-      source: "crossref-fuzzy",
+      current: existingDoi || "(no DOI)",
+      proposed: proposedDoi,
+      writeValue: proposedDoi,
+      source: overrideDoi ? "manual" : "crossref-fuzzy",
       editable: true,
       verifyUrlPrefix: "https://doi.org/",
     });

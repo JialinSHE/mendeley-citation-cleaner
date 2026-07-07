@@ -41,9 +41,33 @@ function authorNames(doc) {
 }
 
 let currentReview = null;
+let journalMap = new Map();
 
 function openReview(doc, diff) {
   currentReview = { doc, diff };
+  refreshView();
+}
+
+// Re-runs the analysis for one document using a DOI the user typed in, so the
+// other fields (title, authors, year, volume, pages…) refresh from the correct
+// record. Prior accept/reject choices for this document are cleared so the user
+// re-decides against the fresh suggestions.
+async function recheckWithDoi(doc, newDoi) {
+  state.decisionsByDocId.delete(doc.id);
+  diffPanelEl.textContent = "Re-checking this paper with the DOI you entered…";
+  const diff = await computeDocumentDiff(doc, {
+    overrideDoi: newDoi,
+    journalSuggestion: journalMap.get(doc.id),
+  });
+  if (diff) {
+    state.diffsByDocId.set(doc.id, diff);
+    currentReview = { doc, diff };
+  } else {
+    state.diffsByDocId.delete(doc.id);
+    currentReview = null;
+    diffPanelEl.hidden = true;
+    diffPanelEl.textContent = "";
+  }
   refreshView();
 }
 
@@ -69,7 +93,7 @@ function refreshTable() {
 function refreshView() {
   refreshTable();
   if (currentReview) {
-    renderDiffPanel(diffPanelEl, currentReview.doc, currentReview.diff, refreshView);
+    renderDiffPanel(diffPanelEl, currentReview.doc, currentReview.diff, refreshView, recheckWithDoi);
   }
 }
 
@@ -92,7 +116,7 @@ downloadBackupBtn.addEventListener("click", downloadChangeLog);
 // Computed one document at a time (not in parallel) to avoid bursting
 // CrossRef with hundreds of simultaneous requests for a large library.
 async function computeAllDiffs(documents) {
-  const journalMap = buildJournalCanonicalMap(documents);
+  journalMap = buildJournalCanonicalMap(documents);
   for (const doc of documents) {
     const diff = await computeDocumentDiff(doc, {
       journalSuggestion: journalMap.get(doc.id),
@@ -104,17 +128,39 @@ async function computeAllDiffs(documents) {
   }
 }
 
+function showError(message, offerReconnect) {
+  statusEl.textContent = message;
+  if (offerReconnect) {
+    const reconnectBtn = document.createElement("button");
+    reconnectBtn.textContent = "Reconnect to Mendeley";
+    reconnectBtn.addEventListener("click", () => {
+      clearToken();
+      window.location.href = "index.html";
+    });
+    statusEl.append(" ", reconnectBtn);
+  }
+}
+
 try {
   const docs = await fetchAllDocuments((count) => {
     statusEl.textContent = `Loading your library… ${count} documents fetched so far`;
   });
   state.documents = docs;
-  statusEl.textContent = `Loaded ${docs.length} documents. Checking for suggestions…`;
-  table.hidden = false;
-  refreshView();
-  renderStylePanel(document.getElementById("style-panel"), docs);
-  await computeAllDiffs(docs);
-  statusEl.textContent = `Loaded ${docs.length} documents — ${state.diffsByDocId.size} have suggestions.`;
+
+  if (docs.length === 0) {
+    statusEl.textContent = "Your Mendeley library is empty — there's nothing to check.";
+  } else {
+    statusEl.textContent = `Loaded ${docs.length} documents. Checking for suggestions…`;
+    table.hidden = false;
+    refreshView();
+    renderStylePanel(document.getElementById("style-panel"), docs);
+    await computeAllDiffs(docs);
+    statusEl.textContent = `Loaded ${docs.length} documents — ${state.diffsByDocId.size} have suggestions.`;
+  }
 } catch (err) {
-  statusEl.textContent = `Error: ${err.message}`;
+  const expired = err.message.includes("session expired");
+  showError(
+    expired ? "Your Mendeley session expired." : `Something went wrong: ${err.message}`,
+    expired
+  );
 }
