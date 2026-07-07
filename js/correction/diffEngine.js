@@ -121,9 +121,14 @@ function crossrefContainer(work) {
   return work && Array.isArray(work["container-title"]) ? work["container-title"][0] : null;
 }
 
+function normalizeName(name) {
+  return (name || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 // Journal name: prefer the library-wide clustering suggestion (consistency
-// across entries); otherwise, if the journal is missing entirely, fill it from
-// the matched CrossRef record.
+// across entries); otherwise, when the matched CrossRef record has a journal
+// name that differs from what's stored (including an empty/wrong name), propose
+// it. Left as "needs review" since abbreviation vs full name is a real choice.
 function computeJournalField(doc, work, matchType, context) {
   const suggestion = context.journalSuggestion;
   if (suggestion) {
@@ -138,12 +143,12 @@ function computeJournalField(doc, work, matchType, context) {
 
   const current = (doc.source || "").trim();
   const container = crossrefContainer(work);
-  if (!current && container) {
+  if (container && normalizeName(container) !== normalizeName(current)) {
     return makeField({
-      current: "(empty)",
+      current: current || "(empty)",
       proposed: container,
       writeValue: container,
-      source: crossrefSource(matchType),
+      source: "crossref-journal",
       editable: true,
     });
   }
@@ -289,5 +294,23 @@ export async function computeDocumentDiff(doc, context = {}) {
     });
   }
 
+  // Also always surface the remaining bibliographic fields so any of them can
+  // be corrected in-tool even when nothing was flagged for them.
+  addVerifyField(fields, "journal", doc.source);
+  addVerifyField(fields, "year", doc.year);
+  addVerifyField(fields, "volume", doc.volume);
+  addVerifyField(fields, "issue", doc.issue);
+  addVerifyField(fields, "pages", doc.pages);
+
   return { documentId: doc.id, fields };
+}
+
+function addVerifyField(fields, key, rawValue) {
+  if (fields[key]) return;
+  const value = rawValue == null ? "" : String(rawValue);
+  fields[key] = makeVerifyField({
+    current: value || "(empty)",
+    writeValue: value,
+    editable: true,
+  });
 }
